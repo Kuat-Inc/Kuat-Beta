@@ -1,145 +1,110 @@
-# Cross-platform wheel builds for Kuat
+# Kuat wheel builds - Python 3.11, x86_64 only (simplified for beta)
 #
-# Builds manylinux, macOS, and Windows wheels on every push to main
-# and on release tags. Uploads to GitHub Releases (private).
-#
-# For beta users: download wheels from releases and install with:
-#   pip install kuat-0.1.0b1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-#
-# REQUIRED SECRET: QUATTREE_PAT - Personal access token with read access to Kuat-Inc/Quattree
+# REQUIRED SECRET: QUATTREE_PAT - Fine-grained PAT with read access to Kuat-Inc/Quattree
 
 name: Build Wheels
 
 on:
   push:
     branches: [main, master]
-    tags:
-      - 'v*'
-  pull_request:
-    branches: [main, master]
-  workflow_dispatch:  # Manual trigger
+    tags: ['v*']
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
+  # Allow PyO3 to work with newer Python versions using stable ABI
+  PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
 
 jobs:
   # ============================================================================
-  # Linux wheels (manylinux)
+  # Linux (manylinux via Docker)
   # ============================================================================
   linux:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
-        target: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
 
-      # Clone Quattree using PAT (goes into ../Quattree relative to Kuat-Beta)
-      - name: Clone Quattree dependency
-        run: |
-          cd ..
-          git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git
-          echo "Quattree cloned to $(pwd)/Quattree"
-
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
+          target: x86_64
+          args: --release --out dist -i python3.11
           manylinux: auto
+          # Clone Quattree INSIDE the Docker container before building
+          before-script-linux: |
+            git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git ../Quattree
+            ls -la ../Quattree
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux-${{ matrix.target }}-py${{ matrix.python-version }}
+          name: wheels-linux-x86_64
           path: dist/*.whl
 
   # ============================================================================
-  # macOS wheels (x86_64 and arm64)
+  # macOS (x86_64 - Intel)
   # ============================================================================
   macos:
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
-        target: [x86_64, aarch64]
+    runs-on: macos-13  # Intel Mac, avoids cross-compile issues
     steps:
       - uses: actions/checkout@v4
 
-      # Clone Quattree using PAT
-      - name: Clone Quattree dependency
-        run: |
-          cd ..
-          git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git
-          echo "Quattree cloned to $(pwd)/Quattree"
+      - name: Clone Quattree
+        run: git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git ../Quattree
 
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}-apple-darwin
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
+          target: x86_64-apple-darwin
+          args: --release --out dist -i python3.11
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-macos-${{ matrix.target }}-py${{ matrix.python-version }}
+          name: wheels-macos-x86_64
           path: dist/*.whl
 
   # ============================================================================
-  # Windows wheels
+  # Windows (x64)
   # ============================================================================
   windows:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
-        target: [x64]
     steps:
       - uses: actions/checkout@v4
 
-      # Clone Quattree using PAT (Windows)
-      - name: Clone Quattree dependency
-        run: |
-          cd ..
-          git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git
-          echo "Quattree cloned to $(Get-Location)\Quattree"
+      - name: Clone Quattree
+        run: git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git ../Quattree
 
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.target }}
+          python-version: '3.11'
+          architecture: x64
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64-pc-windows-msvc
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
+          args: --release --out dist -i python3.11
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-windows-${{ matrix.target }}-py${{ matrix.python-version }}
+          name: wheels-windows-x64
           path: dist/*.whl
 
   # ============================================================================
-  # Create release and upload wheels
+  # Combine all wheels
   # ============================================================================
-  release:
-    name: Release
+  combine:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
     needs: [linux, macos, windows]
     steps:
       - uses: actions/download-artifact@v4
@@ -151,11 +116,7 @@ jobs:
       - name: List wheels
         run: ls -la dist/
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - uses: actions/upload-artifact@v4
         with:
-          files: dist/*.whl
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: all-wheels
+          path: dist/*.whl
