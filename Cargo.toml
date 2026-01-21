@@ -1,0 +1,25 @@
+[package]
+name = "kuat-python"
+version = "0.1.0"
+edition = "2021"
+description = "Python bindings for Kuat - ML dataset compression"
+license = "Proprietary"
+publish = false
+
+[lib]
+name = "_core"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }
+rmp-serde = "1.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Core compression library
+# Local dev uses path, CI uses git (switched via .cargo/config.toml)
+quat-tree = { path = "../Quattree", features = ["native"] }
+
+[features]
+default = []

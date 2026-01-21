@@ -1,0 +1,52 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "kuat"
+version = "0.1.0-beta.1"
+description = "Ultra-fast ML dataset compression with O(1) random access"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary - Kuat Inc." }
+keywords = ["compression", "machine-learning", "dataset", "dataloader", "training"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Archiving :: Compression",
+]
+
+dependencies = [
+    "numpy>=1.20",
+]
+
+[project.optional-dependencies]
+torch = ["torch>=2.0"]
+all = ["torch>=2.0", "torchvision>=0.15"]
+
+# CLI entry points - users get `kuat` and `kuat-convert` commands
+[project.scripts]
+kuat = "kuat.cli:main"
+kuat-convert = "kuat.cli:convert"
+
+[tool.maturin]
+# Mixed Rust + Python project
+python-source = "python"
+module-name = "kuat._core"
+features = ["pyo3/extension-module"]
+# Build for multiple Python versions
+compatibility = "manylinux2014"
+# Strip symbols in release
+strip = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"

@@ -1,0 +1,31 @@
+# Build artifacts
+target/
+dist/
+*.egg-info/
+*.whl
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.pytest_cache/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Maturin
+*.whl
+wheelhouse/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test data
+*.qvq
+test_data/
