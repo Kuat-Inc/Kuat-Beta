@@ -1,8 +1,12 @@
-# Kuat wheel builds - All platforms, Python 3.9-3.12
+# Kuat distribution - Python wheels + CLI binaries
 #
 # REQUIRED SECRET: QUATTREE_PAT - Fine-grained PAT with read access to Kuat-Inc/Quattree
+#
+# Creates GitHub Release with:
+#   - Python wheels for all platforms (3.9-3.12)
+#   - CLI binaries (quat-tree) for encoding datasets
 
-name: Build Wheels
+name: Build & Release
 
 on:
   push:
@@ -12,12 +16,92 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # Allow PyO3 to work with newer Python versions using stable ABI
   PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
 
 jobs:
   # ============================================================================
-  # Linux (manylinux via Docker)
+  # CLI Binaries (quat-tree for encoding)
+  # ============================================================================
+  cli-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Quattree
+        run: git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git .
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Build CLI
+        run: cargo build --release --features native
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp target/release/quat-tree release/quat-tree-linux-x64
+          chmod +x release/quat-tree-linux-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-linux-x64
+          path: release/quat-tree-linux-x64
+
+  cli-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            suffix: macos-arm64
+          - target: x86_64-apple-darwin
+            suffix: macos-x64
+    steps:
+      - name: Clone Quattree
+        run: git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git .
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build CLI
+        run: cargo build --release --features native --target ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp target/${{ matrix.target }}/release/quat-tree release/quat-tree-${{ matrix.suffix }}
+          chmod +x release/quat-tree-${{ matrix.suffix }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.suffix }}
+          path: release/quat-tree-${{ matrix.suffix }}
+
+  cli-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Clone Quattree
+        run: git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git .
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Build CLI
+        run: cargo build --release --features native
+
+      - name: Package
+        run: |
+          mkdir release
+          copy target\release\quat-tree.exe release\quat-tree-windows-x64.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-windows-x64
+          path: release/quat-tree-windows-x64.exe
+
+  # ============================================================================
+  # Python Wheels - Linux (manylinux via Docker)
   # ============================================================================
   linux:
     runs-on: ubuntu-latest
@@ -112,32 +196,73 @@ jobs:
           path: dist/*.whl
 
   # ============================================================================
-  # Combine all wheels + Release
+  # Combine all artifacts + Release
   # ============================================================================
   release:
     runs-on: ubuntu-latest
-    needs: [linux, macos, windows]
+    needs: [cli-linux, cli-macos, cli-windows, linux, macos, windows]
     steps:
       - uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
-          path: dist
+          path: dist/wheels
           merge-multiple: true
 
-      - name: List wheels
-        run: ls -la dist/
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: dist/cli
+          merge-multiple: true
+
+      - name: List artifacts
+        run: |
+          echo "=== Python Wheels ==="
+          ls -la dist/wheels/
+          echo "=== CLI Binaries ==="
+          ls -la dist/cli/
 
       - uses: actions/upload-artifact@v4
         with:
           name: all-wheels
-          path: dist/*.whl
+          path: dist/wheels/*.whl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: all-cli-binaries
+          path: dist/cli/*
 
       # Create GitHub Release on tags
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/*.whl
+          files: |
+            dist/wheels/*.whl
+            dist/cli/*
           generate_release_notes: true
+          body: |
+            ## Installation
+            
+            ### 1. Download CLI binary for your OS
+            - **Windows**: `quat-tree-windows-x64.exe`
+            - **macOS ARM (M1/M2)**: `quat-tree-macos-arm64`
+            - **macOS Intel**: `quat-tree-macos-x64`
+            - **Linux**: `quat-tree-linux-x64`
+            
+            ### 2. Install Python wheel
+            ```bash
+            pip install kuat-*-cp3XX-*-YOUR_PLATFORM.whl
+            ```
+            
+            ### 3. Encode your dataset
+            ```bash
+            quat-tree vq-create /path/to/images -o dataset.kt -r
+            ```
+            
+            ### 4. Use in training
+            ```python
+            from kuat import GPUDataset
+            dataset = GPUDataset("dataset.kt", device="cuda")
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

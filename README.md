@@ -2,18 +2,43 @@
 
 **6-25x faster dataloading via vector quantization.**
 
-Kuat loads pre-compressed `.qvq` archives with O(1) random access, enabling significantly faster training loops than standard image folders.
+Kuat loads pre-compressed `.kt` archives with O(1) random access, enabling significantly faster training loops than standard image folders.
 
-> ⚠️ **Private Beta** - This package reads `.qvq` archives. Contact us for sample datasets or encoding your own data.
+> ⚠️ **Private Beta** - This package reads `.kt` archives. Download the `quat-tree` binary to convert your own datasets.
 
 ## Installation
 
 ```bash
-# Download the wheel for your platform from GitHub Actions artifacts
-pip install kuat-0.1.0b1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+# 1. Install the Python package (download wheel for your platform from Releases)
+pip install kuat-0.1.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 
-# Dependencies
-pip install numpy torch  # torch optional, only for GPU decode
+# 2. Install dependencies
+pip install numpy torch  # torch optional, only needed for GPU decode
+
+# 3. Download quat-tree binary for your platform (for encoding datasets)
+# See Releases page for:
+#   - quat-tree-linux-x64
+#   - quat-tree-macos-arm64  (M1/M2)
+#   - quat-tree-macos-x64    (Intel)
+#   - quat-tree-windows-x64.exe
+```
+
+## Converting Your Dataset
+
+Use the `quat-tree` binary to convert image folders to `.kt` archives:
+
+```bash
+# ImageNet-style folder (class subfolders)
+./quat-tree vq-create ./imagenet/train -o train.kt -r
+
+# Flat folder of images
+./quat-tree vq-create ./my-images -o dataset.kt -r
+
+# With custom patch size (default is 2x2)
+./quat-tree vq-create ./images -o dataset.kt -r --patch 4
+
+# Show archive info
+./quat-tree vq-info train.kt
 ```
 
 ## Quick Start
@@ -24,7 +49,7 @@ pip install numpy torch  # torch optional, only for GPU decode
 import kuat
 
 # Load archive
-archive = kuat.KuatArchive("imagewoof_train.qvq")
+archive = kuat.KuatArchive("imagewoof_train.kt")
 print(f"Images: {archive.len()}")
 
 # Decode single image
@@ -43,7 +68,7 @@ from kuat import GPUDecoder, GPUDataset
 import torch
 
 # Load archive
-archive = kuat.KuatArchive("imagewoof_train.qvq")
+archive = kuat.KuatArchive("imagewoof_train.kt")
 
 # Create GPU decoder (uploads codebook once)
 decoder = GPUDecoder(archive, device="cuda")
@@ -62,9 +87,10 @@ images, labels = dataset[0:64]  # Batch of 64
 ```python
 from kuat import GPUDataset
 import torch
+import random
 
 # Load dataset
-dataset = GPUDataset("imagewoof_train.qvq", device="cuda", normalize=True)
+dataset = GPUDataset("imagewoof_train.kt", device="cuda", normalize=True)
 
 # Training loop
 model = YourModel().cuda()
@@ -90,7 +116,7 @@ for epoch in range(100):
 Low-level archive access:
 
 ```python
-archive = kuat.KuatArchive("dataset.qvq")
+archive = kuat.KuatArchive("dataset.kt")
 
 # Properties
 archive.len()           # Number of images
@@ -154,22 +180,21 @@ Benchmarked on ImageWoof (9,025 images, 224×224):
 
 ## File Format
 
-Kuat reads `.qvq` archives created by the Quattree encoder:
+Kuat reads `.kt` archives created by the `kuat-cli` encoder:
 - **Adaptive VQ**: Variable-size codebook (up to 33M entries)
 - **12-byte patches**: RGB 2×2 patches quantized to single indices
 - **O(1) access**: Memory-mapped for instant random access
 
 ## Requirements
 
-- Python 3.11
+- Python 3.9-3.12
 - NumPy
 - PyTorch (optional, for GPU decode)
 
 ## Support
 
-For beta access, sample datasets, or encoding your own data:
+For beta access or questions:
 - GitHub Issues on this repo
-- Email: [contact email]
 
 ## License
 
