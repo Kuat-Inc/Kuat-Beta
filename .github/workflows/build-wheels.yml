@@ -282,5 +282,3 @@ jobs:
             *Note: Some platform/Python combinations may be missing if builds failed. Check the Actions tab for details.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
