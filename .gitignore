@@ -26,6 +26,13 @@ wheelhouse/
 .DS_Store
 Thumbs.db
 
+# Test/bench files (keep repo clean for users)
+bench_*.py
+test_*.py
+tests/
+notebooks/
+
 # Test data
 *.qvq
+*.kt
 test_data/
