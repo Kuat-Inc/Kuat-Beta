@@ -12,6 +12,13 @@ on:
   push:
     branches: [main, master]
     tags: ['v*']
+    paths:
+      - 'src/**'           # All files in the Rust src folder
+      - 'python/**'        # All files in the python folder
+      - 'Cargo.toml'       # Rust manifest (dependencies/versions)
+      - 'Cargo.lock'       # Rust lock file
+      - 'pyproject.toml'   # Python build configuration
+      # - 'build.rs'       # Uncomment if you use a custom build script
   workflow_dispatch:
 
 env:
