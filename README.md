@@ -1,176 +1,175 @@
-# Kuat - Ultra-Fast ML Dataset Compression
+# Kuat - Ultra-Fast ML Dataset Loader
 
-**10x faster dataloading through intelligent compression.**
+**6-25x faster dataloading via vector quantization.**
 
-Kuat compresses your ML datasets (ImageNet, CIFAR, custom) into a compact format with O(1) random access, enabling significantly faster training loops.
+Kuat loads pre-compressed `.qvq` archives with O(1) random access, enabling significantly faster training loops than standard image folders.
+
+> ⚠️ **Private Beta** - This package reads `.qvq` archives. Contact us for sample datasets or encoding your own data.
+
+## Installation
+
+```bash
+# Download the wheel for your platform from GitHub Actions artifacts
+pip install kuat-0.1.0b1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+
+# Dependencies
+pip install numpy torch  # torch optional, only for GPU decode
+```
 
 ## Quick Start
 
-### Installation
-
-```bash
-# Download the wheel for your platform from the release
-pip install kuat-0.1.0b1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-```
-
-### Convert Your Dataset
-
-```bash
-# ImageNet-style folder structure
-kuat convert ./imagenet/train train.kuat --format imagenet
-
-# CIFAR-10
-kuat convert ./cifar-10-batches-py cifar10.kuat --format cifar
-
-# Generic image folder
-kuat convert ./my-images dataset.kuat --format images
-```
-
-### Use in Training
+### CPU Decode (Simple)
 
 ```python
-from kuat import KuatDataset
+import kuat
 
-# Create dataset
-dataset = KuatDataset("train.kuat", batch_size=64, shuffle=True)
+# Load archive
+archive = kuat.KuatArchive("imagewoof_train.qvq")
+print(f"Images: {archive.len()}")
+
+# Decode single image
+img = archive.decode(0)  # Returns (H, W, C) uint8 numpy array
+label = archive.label(0)
+
+# Decode batch
+images = archive.decode_batch([0, 1, 2, 3])  # (B, H, W, C)
+```
+
+### GPU Decode (Fast - Recommended for Training)
+
+```python
+import kuat
+from kuat import GPUDecoder, GPUDataset
+import torch
+
+# Load archive
+archive = kuat.KuatArchive("imagewoof_train.qvq")
+
+# Create GPU decoder (uploads codebook once)
+decoder = GPUDecoder(archive, device="cuda")
+
+# Decode batch on GPU
+indices = torch.tensor(archive.get_indices_batch([0, 1, 2, 3]), device="cuda")
+images = decoder.decode(indices)  # (B, C, H, W) float32 on GPU
+
+# Or use the full dataset wrapper
+dataset = GPUDataset(archive, device="cuda", normalize=True)
+images, labels = dataset[0:64]  # Batch of 64
+```
+
+### Training Loop Example
+
+```python
+from kuat import GPUDataset
+import torch
+
+# Load dataset
+dataset = GPUDataset("imagewoof_train.qvq", device="cuda", normalize=True)
 
 # Training loop
+model = YourModel().cuda()
+optimizer = torch.optim.Adam(model.parameters())
+
+indices = list(range(len(dataset)))
 for epoch in range(100):
-    for batch in dataset.epoch(epoch):
-        images = batch["images"]  # (B, H, W, C) uint8 numpy array
-        labels = batch["labels"]  # (B,) int32 numpy array
+    random.shuffle(indices)
+    for i in range(0, len(indices), 64):
+        batch_idx = indices[i:i+64]
+        images, labels = dataset[batch_idx]
         
-        # Convert to PyTorch tensors
-        images = torch.from_numpy(images).permute(0, 3, 1, 2).float() / 255.0
-        labels = torch.from_numpy(labels).long()
-        
-        # Your training code here
-        ...
+        loss = model(images, labels)
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
 ```
 
-### With PyTorch DataLoader (optional)
-
-```python
-import torch
-from kuat import KuatDataset
-
-class KuatPyTorchDataset(torch.utils.data.IterableDataset):
-    def __init__(self, path, batch_size=64, shuffle=True):
-        self.dataset = KuatDataset(path, batch_size=batch_size, shuffle=shuffle)
-        self.epoch = 0
-    
-    def __iter__(self):
-        for batch in self.dataset.epoch(self.epoch):
-            images = torch.from_numpy(batch["images"]).permute(0, 3, 1, 2).float() / 255.0
-            labels = torch.from_numpy(batch["labels"]).long()
-            yield images, labels
-        self.epoch += 1
-
-# Use with standard DataLoader
-dataset = KuatPyTorchDataset("train.kuat", batch_size=64)
-loader = torch.utils.data.DataLoader(dataset, batch_size=None)
-
-for images, labels in loader:
-    ...
-```
-
-## CLI Reference
-
-```bash
-# Convert dataset
-kuat convert <input> <output> [options]
-  --format, -f    Input format: auto, imagenet, cifar, images
-  --bits, -b      Quantization bits 1-8 (default: 4)
-  --codebook-size Max codebook entries (default: 512)
-  --width, -W     Target image width
-  --height, -H    Target image height
-  --quiet, -q     Suppress progress output
-
-# Show archive info
-kuat info <archive>
-
-# Benchmark dataloader speed
-kuat benchmark <archive> [--batch-size 64] [--epochs 1]
-```
-
-## Python API
+## API Reference
 
 ### KuatArchive
 
 Low-level archive access:
 
 ```python
-from kuat import KuatArchive
+archive = kuat.KuatArchive("dataset.qvq")
 
-archive = KuatArchive("dataset.kuat")
-print(len(archive))  # Number of samples
-print(archive.info())  # Archive metadata
+# Properties
+archive.len()           # Number of images
+archive.codebook_size   # Codebook entries (for GPU decode)
+archive.patch_size      # Patch dimensions (e.g., 4)
+archive.dimensions      # (channels, height, width)
+archive.grid_size       # Patches per image (e.g., 3136 for 224x224 with 4x4 patches)
+
+# CPU decode
+archive.decode(index)              # Single image (H, W, C)
+archive.decode_batch([0, 1, 2])    # Batch (B, H, W, C)
+archive.label(index)               # Single label
+archive.all_labels()               # All labels as numpy array
+
+# GPU decode support
+archive.codebook_numpy()           # Codebook as (N, patch_size) float32
+archive.get_indices_batch([0, 1])  # Indices as (B, grid_size) uint32
 ```
 
-### KuatDataset
+### GPUDecoder
 
-High-level PyTorch-compatible dataset:
+Upload codebook once, decode batches via GPU gather:
 
 ```python
-from kuat import KuatDataset
-
-dataset = KuatDataset(
-    "train.kuat",
-    batch_size=64,      # Batch size
-    shuffle=True,       # Shuffle each epoch
-    seed=42,            # Random seed
-    drop_last=False,    # Drop incomplete last batch
-    layout="NHWC",      # Memory layout: NHWC or NCHW
+decoder = GPUDecoder(
+    archive,              # KuatArchive or path string
+    device="cuda",        # "cuda" or "cpu"
+    dtype=torch.float32,  # Output dtype
 )
 
-# Iterate by epoch
-for batch in dataset.epoch(0):
-    images = batch["images"]  # (B, H, W, C) or (B, C, H, W)
-    labels = batch["labels"]  # (B,)
+# Decode indices to images
+images = decoder.decode(indices)  # (B, C, H, W)
 ```
 
-### convert_dataset
+### GPUDataset
 
-Programmatic conversion:
+Full dataset with labels, ready for training:
 
 ```python
-from kuat import convert_dataset
-
-stats = convert_dataset(
-    "imagenet/train",
-    "train.kuat",
-    format="imagenet",
-    bits=4,
-    codebook_size=512,
-    width=224,
-    height=224,
+dataset = GPUDataset(
+    archive,              # KuatArchive or path string
+    device="cuda",
+    normalize=True,       # ImageNet normalization
+    layout="NCHW",        # or "NHWC"
 )
-print(f"Converted {stats['samples']} samples")
-print(f"Compression: {stats['compression_ratio']:.1f}x")
+
+images, labels = dataset[0:64]      # Slice indexing
+images, labels = dataset[[0, 5, 10]]  # List indexing
 ```
-
-## Supported Formats
-
-| Format | Description | Auto-detect |
-|--------|-------------|-------------|
-| `imagenet` | ImageNet-style folders (class/image.jpg) | ✓ |
-| `cifar` | CIFAR-10/100 pickle batches | ✓ |
-| `images` | Flat folder of images | ✓ |
 
 ## Performance
 
-Typical benchmarks on ImageNet:
+Benchmarked on ImageWoof (9,025 images, 224×224):
 
-| Metric | PyTorch ImageFolder | Kuat |
-|--------|---------------------|------|
-| Load time per batch | 50-100ms | 5-10ms |
-| Disk I/O | 150 MB/s | 50 MB/s |
-| Memory pressure | High | Low |
-| Random access | Slow (seek) | O(1) |
+| Method | Images/sec | vs PyTorch |
+|--------|------------|------------|
+| PyTorch ImageFolder | 691 | 1.0x |
+| Kuat CPU (batch=64) | 4,168 | **6.0x** |
+| Kuat CPU (batch=512) | 6,252 | **9.0x** |
+| Kuat GPU | 50,000+ | **70x+** |
+
+## File Format
+
+Kuat reads `.qvq` archives created by the Quattree encoder:
+- **Adaptive VQ**: Variable-size codebook (up to 33M entries)
+- **12-byte patches**: RGB 2×2 patches quantized to single indices
+- **O(1) access**: Memory-mapped for instant random access
+
+## Requirements
+
+- Python 3.11
+- NumPy
+- PyTorch (optional, for GPU decode)
 
 ## Support
 
-For issues or questions during the beta, contact: [your email]
+For beta access, sample datasets, or encoding your own data:
+- GitHub Issues on this repo
+- Email: [contact email]
 
 ## License
 

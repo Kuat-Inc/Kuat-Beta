@@ -1,4 +1,4 @@
-# Kuat wheel builds - Python 3.11, x86_64 only (simplified for beta)
+# Kuat wheel builds - All platforms, Python 3.9-3.12
 #
 # REQUIRED SECRET: QUATTREE_PAT - Fine-grained PAT with read access to Kuat-Inc/Quattree
 
@@ -21,18 +21,22 @@ jobs:
   # ============================================================================
   linux:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        target: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: x86_64
-          args: --release --out dist -i python3.11
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python${{ matrix.python-version }}
           manylinux: auto
           # Clone Quattree INSIDE the Docker container before building
           before-script-linux: |
@@ -42,14 +46,18 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux-x86_64
+          name: wheels-linux-${{ matrix.target }}-py${{ matrix.python-version }}
           path: dist/*.whl
 
   # ============================================================================
-  # macOS (x86_64 - Intel)
+  # macOS (ARM64 native + x86_64 cross-compile)
   # ============================================================================
   macos:
-    runs-on: macos-13  # Intel Mac, avoids cross-compile issues
+    runs-on: macos-latest  # ARM64 (M1/M2)
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
     steps:
       - uses: actions/checkout@v4
 
@@ -58,18 +66,18 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: x86_64-apple-darwin
-          args: --release --out dist -i python3.11
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python${{ matrix.python-version }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-macos-x86_64
+          name: wheels-macos-${{ matrix.target }}-py${{ matrix.python-version }}
           path: dist/*.whl
 
   # ============================================================================
@@ -77,6 +85,9 @@ jobs:
   # ============================================================================
   windows:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
 
@@ -85,25 +96,25 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           architecture: x64
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64-pc-windows-msvc
-          args: --release --out dist -i python3.11
+          args: --release --out dist -i python${{ matrix.python-version }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-windows-x64
+          name: wheels-windows-x64-py${{ matrix.python-version }}
           path: dist/*.whl
 
   # ============================================================================
-  # Combine all wheels
+  # Combine all wheels + Release
   # ============================================================================
-  combine:
+  release:
     runs-on: ubuntu-latest
     needs: [linux, macos, windows]
     steps:
@@ -120,3 +131,13 @@ jobs:
         with:
           name: all-wheels
           path: dist/*.whl
+
+      # Create GitHub Release on tags
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.whl
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
