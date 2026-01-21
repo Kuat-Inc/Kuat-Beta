@@ -28,13 +28,13 @@ Use the `quat-tree` binary to convert image folders to `.kt` archives:
 
 ```bash
 # ImageNet-style folder (class subfolders)
-./quat-tree vq-create ./imagenet/train -o train.kt -r
+./quat-tree vq-create ./imagenet/train -o train.kt --width 224 --height 224 -r
 
 # Flat folder of images
-./quat-tree vq-create ./my-images -o dataset.kt -r
+./quat-tree vq-create ./my-images -o dataset.kt --width 224 --height 224 -r 
 
 # With custom patch size (default is 2x2)
-./quat-tree vq-create ./images -o dataset.kt -r --patch 4
+./quat-tree vq-create ./images -o dataset.kt -r --width 224 --height 224 --patch 4
 
 # Show archive info
 ./quat-tree vq-info train.kt
