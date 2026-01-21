@@ -1,6 +1,5 @@
 # Kuat - Ultra-Fast ML Dataset Loader
 
-**6-25x faster dataloading via vector quantization.**
 
 Kuat loads pre-compressed `.kt` archives with O(1) random access, enabling significantly faster training loops than standard image folders.
 
@@ -176,14 +175,6 @@ Benchmarked on ImageWoof (9,025 images, 224×224):
 | PyTorch ImageFolder | 691 | 1.0x |
 | Kuat CPU (batch=64) | 4,168 | **6.0x** |
 | Kuat CPU (batch=512) | 6,252 | **9.0x** |
-| Kuat GPU | 50,000+ | **70x+** |
-
-## File Format
-
-Kuat reads `.kt` archives created by the `kuat-cli` encoder:
-- **Adaptive VQ**: Variable-size codebook (up to 33M entries)
-- **12-byte patches**: RGB 2×2 patches quantized to single indices
-- **O(1) access**: Memory-mapped for instant random access
 
 ## Requirements
 
@@ -195,7 +186,7 @@ Kuat reads `.kt` archives created by the `kuat-cli` encoder:
 
 For beta access or questions:
 - GitHub Issues on this repo
-
+- founders@kuatlabs.com
 ## License
 
 Proprietary - Kuat Inc. All rights reserved.
