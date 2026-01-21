@@ -1,123 +1,117 @@
 # Kuat Private Beta - Quick Start Guide
 
-Welcome to the Kuat private beta! This guide will get you up and running in 5 minutes.
+Welcome to the Kuat private beta! Get 6-25x faster dataset loading in 5 minutes.
 
-## 1. Install the Package
+## Step 1: Download CLI Encoder
 
-Download the wheel file for your platform from the release:
+1. Go to [Releases](https://github.com/Kuat-Inc/Kuat-Beta/releases/latest)
+2. Download the `quat-tree` binary for your platform:
+   - **Linux**: `quat-tree-linux-x64`
+   - **macOS Apple Silicon**: `quat-tree-macos-arm64`
+   - **macOS Intel**: `quat-tree-macos-x64`
+   - **Windows**: `quat-tree-windows-x64.exe`
 
-| Platform | Python | File |
-|----------|--------|------|
-| Linux x86_64 | 3.11 | `kuat-0.1.0b1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl` |
-| Linux x86_64 | 3.12 | `kuat-0.1.0b1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl` |
-| macOS Intel | 3.11 | `kuat-0.1.0b1-cp311-cp311-macosx_10_12_x86_64.whl` |
-| macOS Apple Silicon | 3.11 | `kuat-0.1.0b1-cp311-cp311-macosx_11_0_arm64.whl` |
-| Windows x64 | 3.11 | `kuat-0.1.0b1-cp311-none-win_amd64.whl` |
-
+3. Make it executable (Linux/macOS):
 ```bash
-# Create a virtual environment (recommended)
-python -m venv kuat-env
-source kuat-env/bin/activate  # Linux/macOS
-# or: kuat-env\Scripts\activate  # Windows
-
-# Install the wheel
-pip install /path/to/kuat-0.1.0b1-*.whl
-
-# Verify installation
-kuat --version
+chmod +x quat-tree-*
 ```
 
-## 2. Convert Your Dataset
+## Step 2: Encode Your Dataset
 
-### ImageNet-style folders
-
-If your dataset is organized as `train/class_name/image.jpg`:
+Convert your images to a `.kt` archive:
 
 ```bash
-kuat convert ./my-dataset/train train.kuat --format imagenet
-kuat convert ./my-dataset/val val.kuat --format imagenet
+# ImageNet folders (224x224 images)
+./quat-tree vq-create ./imagenet/train -o train.kt --format imagenet -r
+
+# CIFAR-10 (32x32 images) - default size
+./quat-tree vq-create ./images -o dataset.kt -r
+
+# Custom size
+./quat-tree vq-create ./images -o dataset.kt -r --width 256 --height 256
+
+# Check archive info
+./quat-tree vq-info train.kt
 ```
 
-### CIFAR-10/100
+**Important**: Default is 32x32. For full ImageNet resolution, use `--format imagenet` or specify `--width 224 --height 224`.
+
+## Step 3: Install Python Wheel
+
+1. Go to [Releases](https://github.com/Kuat-Inc/Kuat-Beta/releases/latest)
+2. Download the wheel matching your Python version and platform
+3. Install:
 
 ```bash
-kuat convert ./cifar-10-batches-py cifar10.kuat --format cifar
+pip install kuat-0.1.0-cp311-YOUR_PLATFORM.whl
 ```
 
-### Flat folder of images
+Example platforms:
+- Linux x86_64: `manylinux_2_34_x86_64`
+- macOS ARM: `macosx_11_0_arm64`
+- Windows: `win_amd64`
 
-```bash
-kuat convert ./images dataset.kuat --format images
-```
+## Step 4: Train Your Model
 
-### Custom dimensions
-
-```bash
-# For 32x32 images
-kuat convert ./data small.kuat --width 32 --height 32
-
-# For 224x224 images (default for imagenet)
-kuat convert ./data large.kuat --width 224 --height 224
-```
-
-## 3. Use in Your Training Script
-
-Replace your PyTorch ImageFolder/DataLoader with:
+Drop-in replacement for PyTorch DataLoader:
 
 ```python
-from kuat import KuatDataset
+from kuat import GPUDataset
+import torch
+import random
 
-# Create dataset
-train_data = KuatDataset("train.kuat", batch_size=64, shuffle=True)
+# Load dataset with GPU decode
+dataset = GPUDataset("train.kt", device="cuda")
 
-# Training loop - epochs are explicit
+# Training loop
+model = YourModel().cuda()
+optimizer = torch.optim.Adam(model.parameters())
+
 for epoch in range(100):
-    for batch in train_data.epoch(epoch):
-        # images: numpy array (B, H, W, C) uint8
-        # labels: numpy array (B,) int32
-        images = batch["images"]
-        labels = batch["labels"]
+    indices = list(range(len(dataset)))
+    random.shuffle(indices)
+    
+    for i in range(0, len(indices), 64):
+        batch_idx = indices[i:i+64]
+        images, labels = dataset[batch_idx]  # Already on GPU!
         
-        # Convert to PyTorch if needed
-        images = torch.from_numpy(images).permute(0, 3, 1, 2).float() / 255.0
-        labels = torch.from_numpy(labels).long()
-        
-        # Your training code...
+        loss = model(images, labels)
+        loss.backward()
+        optimizer.step()
 ```
 
-## 4. Benchmark Your Speedup
+## Performance Tips
 
-```bash
-# Check how fast batches load
-kuat benchmark train.kuat --batch-size 64 --epochs 3
-```
-
-Compare with your current DataLoader!
+- Use `GPUDataset` for GPU training (fastest)
+- Use larger batch sizes when possible
+- Archives are O(1) random access - shuffling is free
 
 ## Troubleshooting
 
 ### "Failed to open archive"
-- Check the file path is correct
-- Verify the .kuat file was created successfully
+- Verify the `.kt` file path is correct
+- Check the file was created successfully with `quat-tree vq-info`
 
 ### "module 'kuat' has no attribute..."
-- Make sure you installed the correct wheel for your Python version
-- Try `pip uninstall kuat && pip install ...` to reinstall
+- Ensure you installed the wheel matching your Python version
+- Try reinstalling: `pip uninstall kuat && pip install kuat-*.whl`
 
-### Slow conversion
+### Encoding takes long
 - Large datasets (>100K images) may take several minutes
-- Use `--quiet` to reduce console output overhead
+- Progress is shown - let it complete
+
+### Wrong image dimensions
+- Default is 32x32. For ImageNet, use `--format imagenet` or `--width 224 --height 224`
 
 ## Feedback
 
-We'd love to hear about:
-- Your use case and dataset size
-- Speed improvements you're seeing
-- Any issues or crashes
-- Feature requests
+Please open issues at: https://github.com/Kuat-Inc/Kuat-Beta/issues
 
-Contact: [your-email@example.com]
+We'd love to hear:
+- What speedup you're seeing vs PyTorch
+- Your dataset size and use case
+- Any bugs or feature requests
 
 ---
 
-Thank you for being a beta tester! 🚀
+Thank you for being a beta tester!

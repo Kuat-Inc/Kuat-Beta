@@ -1,87 +1,61 @@
 # Kuat - Ultra-Fast ML Dataset Loader
 
+Kuat compresses ML datasets while making them decode 6-25x faster than PyTorch. Training loops run faster with lower storage costs.
 
-Kuat loads pre-compressed `.kt` archives with O(1) random access, enabling significantly faster training loops than standard image folders.
-
-> ⚠️ **Private Beta** - This package reads `.kt` archives. Download the `quat-tree` binary to convert your own datasets.
-
-## Installation
-
-```bash
-# 1. Install the Python package (download wheel for your platform from Releases)
-pip install kuat-0.1.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-
-# 2. Install dependencies
-pip install numpy torch  # torch optional, only needed for GPU decode
-
-# 3. Download quat-tree binary for your platform (for encoding datasets)
-# See Releases page for:
-#   - quat-tree-linux-x64
-#   - quat-tree-macos-arm64  (M1/M2)
-#   - quat-tree-macos-x64    (Intel)
-#   - quat-tree-windows-x64.exe
-```
-
-## Converting Your Dataset
-
-Use the `quat-tree` binary to convert image folders to `.kt` archives:
-
-```bash
-# ImageNet-style folder (class subfolders)
-./quat-tree vq-create ./imagenet/train -o train.kt --width 224 --height 224 -r
-
-# Flat folder of images
-./quat-tree vq-create ./my-images -o dataset.kt --width 224 --height 224 -r 
-
-# With custom patch size (default is 2x2)
-./quat-tree vq-create ./images -o dataset.kt -r --width 224 --height 224 --patch 4
-
-# Show archive info
-./quat-tree vq-info train.kt
-```
+> ⚠️ **Private Beta** - Free for academic/research use. Contact us for commercial licensing.
 
 ## Quick Start
 
-### CPU Decode (Simple)
+### Step 1: Download CLI Binary
 
-```python
-import kuat
+Download the `quat-tree` encoder for your platform from [Releases](https://github.com/Kuat-Inc/Kuat-Beta/releases):
 
-# Load archive
-archive = kuat.KuatArchive("imagewoof_train.kt")
-print(f"Images: {archive.len()}")
+- **Linux**: `quat-tree-linux-x64`
+- **macOS Apple Silicon (M1/M2)**: `quat-tree-macos-arm64`
+- **macOS Intel**: `quat-tree-macos-x64`
+- **Windows**: `quat-tree-windows-x64.exe`
 
-# Decode single image
-img = archive.decode(0)  # Returns (H, W, C) uint8 numpy array
-label = archive.label(0)
-
-# Decode batch
-images = archive.decode_batch([0, 1, 2, 3])  # (B, H, W, C)
+Make it executable (Linux/macOS):
+```bash
+chmod +x quat-tree-*
 ```
 
-### GPU Decode (Fast - Recommended for Training)
+### Step 2: Encode Your Dataset
 
-```python
-import kuat
-from kuat import GPUDecoder, GPUDataset
-import torch
+Convert your images to a `.kt` archive:
 
-# Load archive
-archive = kuat.KuatArchive("imagewoof_train.kt")
+```bash
+# ImageNet-style folders (224x224 images)
+./quat-tree vq-create ./imagenet/train -o train.kt --format imagenet -r
 
-# Create GPU decoder (uploads codebook once)
-decoder = GPUDecoder(archive, device="cuda")
+# CIFAR-10 (32x32 images)
+./quat-tree vq-create ./images -o dataset.kt -r --width 32 --height 32
 
-# Decode batch on GPU
-indices = torch.tensor(archive.get_indices_batch([0, 1, 2, 3]), device="cuda")
-images = decoder.decode(indices)  # (B, C, H, W) float32 on GPU
+# Custom size
+./quat-tree vq-create ./images -o dataset.kt -r --width 224 --height 224
 
-# Or use the full dataset wrapper
-dataset = GPUDataset(archive, device="cuda", normalize=True)
-images, labels = dataset[0:64]  # Batch of 64
+# Check archive info
+./quat-tree vq-info train.kt
 ```
 
-### Training Loop Example
+**Note**: Default is 32x32. For ImageNet at full resolution, use `--format imagenet` or specify `--width 224 --height 224`.
+
+### Step 3: Install Python Wheel
+
+Download the wheel for your platform from [Releases](https://github.com/Kuat-Inc/Kuat-Beta/releases):
+
+```bash
+pip install kuat-0.1.0-cp311-YOUR_PLATFORM.whl
+```
+
+Platform examples:
+- Linux: `manylinux_2_34_x86_64` or `manylinux_2_34_aarch64`
+- macOS: `macosx_11_0_arm64` or `macosx_10_12_x86_64`
+- Windows: `win_amd64`
+
+### Step 4: Train Your Model
+
+Use the archive in your training code:
 
 ```python
 from kuat import GPUDataset
