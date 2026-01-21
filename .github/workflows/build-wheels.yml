@@ -29,7 +29,7 @@ jobs:
         run: git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git .
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Build CLI
         run: cargo build --release --features native
@@ -59,7 +59,7 @@ jobs:
         run: git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git .
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Add target
         run: rustup target add ${{ matrix.target }}
@@ -85,7 +85,7 @@ jobs:
         run: git clone https://${{ secrets.QUATTREE_PAT }}@github.com/Kuat-Inc/Quattree.git .
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Build CLI
         run: cargo build --release --features native
