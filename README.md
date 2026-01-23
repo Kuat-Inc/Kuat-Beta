@@ -2,8 +2,6 @@
 
 Kuat compresses ML datasets while making them decode 6-25x faster than PyTorch. Training loops run faster with lower storage costs.
 
-> ⚠️ **Private Beta** - Free for academic/research use. Contact us for commercial licensing.
-
 ## Quick Start
 
 ### Step 1: Download CLI Binary
