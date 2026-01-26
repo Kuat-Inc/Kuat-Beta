@@ -4,8 +4,6 @@ Kuattree is a next-generation ML data file format that makes training 4x faster.
 
 **Target Users:** AI labs, cloud providers, enterprise ML teams
 
-> ⚠️ **Private Beta** - Free for academic/research use. Enterprise licensing available for production deployments.
-
 ## Benchmarks
 
 - **26x faster** I/O on Flickr30k (multimodal)
