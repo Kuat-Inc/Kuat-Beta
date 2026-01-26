@@ -1,6 +1,19 @@
-# Kuat - Ultra-Fast ML Dataset Loader
+# Kuattree - Next-Generation ML Data Format
 
-Kuat compresses ML datasets while making them decode 6-25x faster than PyTorch. Training loops run faster with lower storage costs.
+Kuattree is a next-generation ML data file format that makes training 4x faster. Near-lossless compression with 26x faster I/O on Flickr30k, 20x on ImageNet, and 15x on CIFAR-10 compared to PyTorch.
+
+**Target Users:** AI labs, cloud providers, enterprise ML teams
+
+> ⚠️ **Private Beta** - Free for academic/research use. Enterprise licensing available for production deployments.
+
+## Benchmarks
+
+- **26x faster** I/O on Flickr30k (multimodal)
+- **20x faster** I/O on ImageNet  
+- **15x faster** I/O on CIFAR-10
+- **4x faster** end-to-end training vs PyTorch
+- **3x faster** vs MosaicML
+- **2x faster** vs NVIDIA DALI
 
 ## Quick Start
 
