@@ -165,6 +165,10 @@ Benchmarked on ImageWoof (9,025 images, 224×224):
 - NumPy
 - PyTorch (optional, for GPU decode)
 
+## Important Note
+
+**Single GPU Only**: This beta version is optimized for single-GPU setups. For multi-GPU or distributed training support, please reach out to us at founders@kuatlabs.com.
+
 ## Support
 
 For beta access or questions:
