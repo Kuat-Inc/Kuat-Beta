@@ -1,6 +1,6 @@
 [package]
 name = "kuat-python"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Python bindings for Kuat - ML dataset compression"
 license = "Proprietary"
@@ -23,3 +23,5 @@ quat-tree = { path = "../Quattree", features = ["native"] }
 
 [features]
 default = []
+# Beta features: quota enforcement and telemetry
+beta = ["quat-tree/beta"]

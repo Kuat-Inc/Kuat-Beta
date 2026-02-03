@@ -371,7 +371,15 @@ impl KuatEpochIterator {
             .layout(self.layout);
 
         let batch = loader.get_batch(self.epoch, self.current_batch)
-            .map_err(|e| PyRuntimeError::new_err(format!("get_batch failed: {}", e)))?;
+            .map_err(|e| {
+                let error_msg = format!("{}", e);
+                // Check if this is a beta quota error
+                if error_msg.contains("Beta evaluation limit") || error_msg.contains("BetaQuotaExceeded") {
+                    BetaQuotaExceeded::new_err(error_msg)
+                } else {
+                    PyRuntimeError::new_err(format!("get_batch failed: {}", e))
+                }
+            })?;
 
         self.current_batch += 1;
         Ok(Some(batch_to_dict(py, &batch)?))
@@ -419,16 +427,22 @@ fn batch_to_dict(py: Python<'_>, batch: &DecodedBatch) -> PyResult<PyObject> {
 // Module Definition
 // ============================================================================
 
+// Custom exception for beta quota exceeded
+pyo3::create_exception!(kuat, BetaQuotaExceeded, pyo3::exceptions::PyException);
+
 /// Kuat - Ultra-fast ML dataset loading
 #[pymodule]
-fn _core(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn _core(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // Main classes
     m.add_class::<KuatArchive>()?;
     m.add_class::<KuatDataset>()?;
     m.add_class::<KuatEpochIterator>()?;
 
+    // Custom exceptions
+    m.add("BetaQuotaExceeded", py.get_type::<BetaQuotaExceeded>())?;
+
     // Version
-    m.add("__version__", "0.1.0-beta.1")?;
+    m.add("__version__", "0.2.0-beta.1")?;
 
     Ok(())
 }
