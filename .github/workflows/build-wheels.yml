@@ -128,7 +128,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist -i python${{ matrix.python-version }}
+          args: --release --features beta --out dist -i python${{ matrix.python-version }}
           manylinux: auto
           # Clone Quattree INSIDE the Docker container before building
           before-script-linux: |
@@ -149,7 +149,7 @@ jobs:
     strategy:
       fail-fast: false  # Don't cancel other jobs if one fails
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.11', '3.12']
         target: [aarch64-apple-darwin, x86_64-apple-darwin]
     steps:
       - uses: actions/checkout@v4
@@ -165,7 +165,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist -i python${{ matrix.python-version }}
+          args: --release --features beta --out dist -i python${{ matrix.python-version }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -197,7 +197,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64-pc-windows-msvc
-          args: --release --out dist -i python${{ matrix.python-version }}
+          args: --release --features beta --out dist -i python${{ matrix.python-version }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
